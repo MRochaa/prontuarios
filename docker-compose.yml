@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Backend do sistema odontológico
+  dental-backend:
+    build: .
+    container_name: dental-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # Configurações do banco (configure no Coolify)
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # Segurança (configure como secrets no Coolify)
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # N8n (opcional)
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-}
+      N8N_SECRET: ${N8N_SECRET:-dental-n8n-secret}
+      # Configurações gerais
+      TZ: America/Sao_Paulo
+      LOG_LEVEL: info
+    volumes:
+      - dental_uploads:/app/server/uploads
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - dental_network
+
+volumes:
+  dental_uploads:
+    driver: local
+
+networks:
+  dental_network:
+    driver: bridge
+
