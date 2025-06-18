@@ -14,19 +14,19 @@ RUN addgroup -g 1001 -S nodejs && \
 # Criar diretório da aplicação
 WORKDIR /app
 
-# Copiar arquivos de dependências
-COPY package*.json ./
+# Copiar apenas package.json primeiro (para cache do Docker)
+COPY package.json ./
 
-# Instalar dependências
-RUN npm install --production && npm cache clean --force
+# Instalar dependências (sem package-lock.json)
+RUN npm install --omit=dev && npm cache clean --force
 
-# Copiar código da aplicação
-COPY server/ ./server/
+# Copiar todo o código da aplicação
+COPY . .
 
 # Criar diretórios necessários para uploads com permissões corretas
-RUN mkdir -p server/uploads/patients server/uploads/treatments && \
-    chmod -R 755 server/uploads && \
-    chown -R dental:nodejs server/uploads && \
+RUN mkdir -p /app/server/uploads/patients /app/server/uploads/treatments && \
+    chmod -R 755 /app/server/uploads && \
+    chown -R dental:nodejs /app/server/uploads && \
     chown -R dental:nodejs /app
 
 # Mudar para usuário não-root
@@ -36,8 +36,8 @@ USER dental
 EXPOSE 3001
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:3001/api/health || exit 1
 
-# Comando para iniciar
-CMD ["node", "server/index.js"]
+# Comando para iniciar (usando entrypoint que inicializa o banco)
+CMD ["node", "server/entrypoint.js"]
