@@ -5,7 +5,7 @@
   "main": "server/index.js",
   "type": "module",
   "scripts": {
-    "start": "node server/index.js",
+    "start": "node server/entrypoint.js",
     "dev": "node --watch server/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -20,7 +20,7 @@
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.3",
-    "multer": "^2.0.0-rc.3",
+    "multer": "1.4.5-lts.1",
     "uuid": "^9.0.1",
     "dotenv": "^16.3.1",
     "puppeteer": "^22.12.1",
