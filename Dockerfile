@@ -18,13 +18,14 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar dependências
-RUN npm install --only=production && npm cache clean --force
+RUN npm install --production && npm cache clean --force
 
 # Copiar código da aplicação
 COPY server/ ./server/
 
-# Criar diretório para uploads
+# Criar diretórios necessários para uploads com permissões corretas
 RUN mkdir -p server/uploads/patients server/uploads/treatments && \
+    chmod -R 755 server/uploads && \
     chown -R dental:nodejs server/uploads && \
     chown -R dental:nodejs /app
 
@@ -40,4 +41,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # Comando para iniciar
 CMD ["node", "server/index.js"]
-
