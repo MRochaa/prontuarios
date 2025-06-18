@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+README.md
+DEPLOY_*.md
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.local
+.env.development
+.env.test
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Tests
+coverage
+.nyc_output
+
+# Build artifacts
+dist
+build
+
+# Documentation
+docs
+*.md
+
+# Temporary files
+tmp
+temp
