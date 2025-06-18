@@ -11,7 +11,6 @@ import treatmentRoutes from './routes/treatments.js';
 import webhookRoutes from './routes/webhooks.js';
 import pdfRoutes from './routes/pdf.js';
 import { authenticateToken } from './middleware/auth.js';
-import { initDatabase } from './database/init.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -68,20 +67,9 @@ app.use((error, req, res, next) => {
   });
 });
 
-// Initialize database and start server
-async function startServer() {
-  try {
-        // await initDatabase();
-    console.log('Database initialized successfully');
-    
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-}
-
-startServer();
+// Start server
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🏥 Servidor rodando na porta ${PORT}`);
+  console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`✅ Sistema pronto para uso!`);
+});
