@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Backend - API Node.js
+  dental-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: dental-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3001
+      # Configurações do banco
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # Segurança
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # N8n (opcional)
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-}
+      N8N_SECRET: ${N8N_SECRET:-dental-n8n-secret}
+      # Configurações gerais
+      TZ: ${TZ:-America/Sao_Paulo}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - dental_uploads:/app/server/uploads
+    networks:
+      - dental_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # Frontend - React App
+  dental-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    container_name: dental-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      dental-backend:
+        condition: service_healthy
+    networks:
+      - dental_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  dental_uploads:
+    driver: local
+
+networks:
+  dental_network:
+    driver: bridge
+
