@@ -6,44 +6,28 @@
   "type": "module",
   "scripts": {
     "start": "node server/entrypoint.js",
-    "dev": "nodemon server/entrypoint.js",
-    "test": "echo \"Tests not implemented yet\" && exit 0",
-    "lint": "echo \"Linting not configured\" && exit 0"
+    "dev": "node server/entrypoint.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
-    "compression": "^1.7.4",
     "express-rate-limit": "^7.1.5",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.3",
     "multer": "^1.4.5-lts.1",
-    "crypto": "^1.0.1",
-    "puppeteer": "^21.6.1",
-    "handlebars": "^4.7.8",
+    "uuid": "^9.0.1",
     "dotenv": "^16.3.1",
-    "node-cron": "^3.0.3",
-    "winston": "^3.11.0",
-    "joi": "^17.11.0",
-    "express-validator": "^7.0.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
+    "puppeteer": "^21.6.1"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=18.0.0"
   },
   "keywords": [
     "dental",
-    "medical",
     "odontologia",
-    "prontuario",
-    "healthcare",
-    "lgpd"
+    "prontuario"
   ],
   "author": "Sistema Odontológico",
   "license": "MIT"
