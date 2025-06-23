@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from 'react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/auth/Login';
@@ -17,6 +18,11 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+    },
+    mutations: {
+      retry: 1,
     },
   },
 });
@@ -26,8 +32,11 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-gray-600">Carregando sistema...</p>
+        </div>
       </div>
     );
   }
@@ -67,15 +76,29 @@ function App() {
                 style: {
                   background: '#363636',
                   color: '#fff',
+                  fontSize: '14px',
                 },
                 success: {
                   style: {
                     background: '#10B981',
                   },
+                  iconTheme: {
+                    primary: '#fff',
+                    secondary: '#10B981',
+                  },
                 },
                 error: {
                   style: {
                     background: '#EF4444',
+                  },
+                  iconTheme: {
+                    primary: '#fff',
+                    secondary: '#EF4444',
+                  },
+                },
+                loading: {
+                  style: {
+                    background: '#3B82F6',
                   },
                 },
               }}
@@ -83,6 +106,7 @@ function App() {
           </div>
         </Router>
       </AuthProvider>
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }
