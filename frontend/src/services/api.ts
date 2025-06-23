@@ -1,12 +1,23 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface ApiResponse<T> {
+  success?: boolean;
+  data?: T;
+  message?: string;
+}
 
 class ApiClient {
-  private getAuthHeaders() {
+  private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem('dental_token');
-    return {
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
     };
+    
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    return headers;
   }
 
   private async request<T>(
@@ -20,14 +31,30 @@ class ApiClient {
       ...options,
     };
 
-    const response = await fetch(url, config);
+    try {
+      const response = await fetch(url, config);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // Se não conseguir fazer parse do JSON, usa a mensagem padrão
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Erro de rede ou servidor');
     }
-
-    return response.json();
   }
 
   private async requestFormData<T>(
@@ -43,18 +70,34 @@ class ApiClient {
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: formData,
-    });
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: formData,
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // Se não conseguir fazer parse do JSON, usa a mensagem padrão
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Erro ao enviar dados');
     }
-
-    return response.json();
   }
 
   // Auth endpoints
@@ -90,11 +133,14 @@ class ApiClient {
   } = {}) {
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) {
+      if (value !== undefined && value !== '') {
         queryParams.append(key, value.toString());
       }
     });
 
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/patients?${queryString}` : '/patients';
+    
     return this.request<{
       patients: any[];
       pagination: {
@@ -103,7 +149,7 @@ class ApiClient {
         total: number;
         pages: number;
       };
-    }>(`/patients?${queryParams}`);
+    }>(endpoint);
   }
 
   async getPatient(id: string) {
@@ -140,12 +186,17 @@ class ApiClient {
   ) {
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) {
+      if (value !== undefined && value !== '') {
         queryParams.append(key, value.toString());
       }
     });
 
-    return this.request<any[]>(`/treatments/patient/${patientId}?${queryParams}`);
+    const queryString = queryParams.toString();
+    const endpoint = queryString 
+      ? `/treatments/patient/${patientId}?${queryString}` 
+      : `/treatments/patient/${patientId}`;
+    
+    return this.request<any[]>(endpoint);
   }
 
   async getTreatment(id: string) {
@@ -176,24 +227,37 @@ class ApiClient {
       dateTo?: string;
       includeSignatures?: boolean;
     } = {}
-  ) {
+  ): Promise<Blob> {
+    const token = localStorage.getItem('dental_token');
+    
     const response = await fetch(`${API_BASE_URL}/pdf/patient/${patientId}`, {
       method: 'POST',
-      headers: this.getAuthHeaders(),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
       body: JSON.stringify(options),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to generate PDF');
+      throw new Error('Falha ao gerar PDF');
     }
 
     return response.blob();
   }
+
+  // Health check
+  async healthCheck() {
+    return this.request<{ status: string; timestamp: string }>('/health');
+  }
 }
 
-export const authAPI = new ApiClient();
-export const patientsAPI = new ApiClient();
-export const treatmentsAPI = new ApiClient();
-export const pdfAPI = new ApiClient();
+// Instâncias compartilhadas
+const apiClient = new ApiClient();
 
-export default new ApiClient();
+export const authAPI = apiClient;
+export const patientsAPI = apiClient;
+export const treatmentsAPI = apiClient;
+export const pdfAPI = apiClient;
+
+export default apiClient;
