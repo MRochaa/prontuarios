@@ -6,7 +6,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    port: 5174
+    port: 5173
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+    minify: 'terser'
   },
   optimizeDeps: {
     exclude: ['lucide-react'],
