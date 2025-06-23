@@ -30,6 +30,8 @@ services:
       - dental_uploads:/app/server/uploads
     networks:
       - dental_network
+    ports:
+      - "3001:3001"  # Expor porta para debug se necessário
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
       interval: 30s
@@ -47,7 +49,7 @@ services:
     container_name: dental-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "${PORT:-80}:80"
     depends_on:
       dental-backend:
         condition: service_healthy
@@ -67,4 +69,3 @@ volumes:
 networks:
   dental_network:
     driver: bridge
-
