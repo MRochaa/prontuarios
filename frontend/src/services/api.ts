@@ -219,7 +219,7 @@ class ApiClient {
     return this.request<{ name: string; category: string }[]>('/treatments/procedures/list');
   }
 
-  // PDF endpoints
+  // PDF endpoints (temporariamente desabilitado)
   async generatePatientPDF(
     patientId: string,
     options: {
@@ -227,23 +227,9 @@ class ApiClient {
       dateTo?: string;
       includeSignatures?: boolean;
     } = {}
-  ): Promise<Blob> {
-    const token = localStorage.getItem('dental_token');
-    
-    const response = await fetch(`${API_BASE_URL}/pdf/patient/${patientId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(options),
-    });
-
-    if (!response.ok) {
-      throw new Error('Falha ao gerar PDF');
-    }
-
-    return response.blob();
+  ): Promise<any> {
+    // Retorna dados JSON ao invés de PDF por enquanto
+    return this.request(`/patients/${patientId}/export`);
   }
 
   // Health check
