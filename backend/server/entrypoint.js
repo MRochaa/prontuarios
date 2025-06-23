@@ -1,226 +1,161 @@
 import 'dotenv/config';
-import pkg from 'pg';
-import bcrypt from 'bcryptjs';
 import { spawn } from 'child_process';
-const { Pool } = pkg;
+import { testConnection, initDatabase, createDefaultAdmin } from './database/init.js';
 
 console.log('🚀 Sistema Odontológico - Iniciando...\n');
 
-// Configuração do pool
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  connectionTimeoutMillis: 30000
-});
-
-async function waitForDatabase(retries = 30) {
+async function waitForDatabase(retries = 30, interval = 2000) {
   console.log('⏳ Aguardando banco de dados...');
   
   for (let i = 0; i < retries; i++) {
     try {
-      const client = await pool.connect();
-      await client.query('SELECT 1');
-      client.release();
+      await testConnection();
       console.log('✅ Banco de dados está pronto!');
       return true;
     } catch (error) {
-      console.log(`⏳ Tentativa ${i + 1}/${retries} - Aguardando banco...`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log(`⏳ Tentativa ${i + 1}/${retries} - Aguardando banco... (${error.message})`);
+      
+      if (i === retries - 1) {
+        throw new Error(`Banco de dados não está disponível após ${retries} tentativas`);
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, interval));
     }
   }
-  
-  throw new Error('Banco de dados não está disponível após múltiplas tentativas');
 }
 
-async function initDatabase() {
-  const client = await pool.connect();
+async function validateEnvironment() {
+  console.log('🔍 Validando variáveis de ambiente...');
   
-  try {
-    console.log('\n📊 Inicializando banco de dados...');
-    
-    // Criar extensão UUID
-    await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
-    
-    // Criar tabelas
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(50) NOT NULL DEFAULT 'dentist',
-        name VARCHAR(255) NOT NULL,
-        cro VARCHAR(20),
-        active BOOLEAN DEFAULT true,
-        last_login TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS patients (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name VARCHAR(255) NOT NULL,
-        cpf VARCHAR(14) UNIQUE,
-        birth_date DATE,
-        phone VARCHAR(20),
-        email VARCHAR(255),
-        address JSONB,
-        photo_url VARCHAR(500),
-        consent_date TIMESTAMP,
-        active BOOLEAN DEFAULT true,
-        created_by UUID REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS treatments (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-        dentist_id UUID NOT NULL REFERENCES users(id),
-        date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        teeth INTEGER[],
-        procedure VARCHAR(255) NOT NULL,
-        observations TEXT,
-        status VARCHAR(50) DEFAULT 'in_progress',
-        signature TEXT,
-        signature_hash VARCHAR(255),
-        photos JSONB DEFAULT '[]',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS procedures (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name VARCHAR(255) NOT NULL,
-        category VARCHAR(100),
-        description TEXT,
-        active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS webhooks_config (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        event_type VARCHAR(100) NOT NULL,
-        url VARCHAR(500) NOT NULL,
-        active BOOLEAN DEFAULT true,
-        headers JSONB DEFAULT '{}',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        user_id UUID REFERENCES users(id),
-        action VARCHAR(100) NOT NULL,
-        entity VARCHAR(100) NOT NULL,
-        entity_id UUID,
-        details JSONB,
-        ip_address INET,
-        user_agent TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    // Criar índices
-    await client.query('CREATE INDEX IF NOT EXISTS idx_patients_cpf ON patients(cpf)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_patients_name ON patients(name)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_treatments_patient ON treatments(patient_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_treatments_date ON treatments(date)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp)');
-    
-    // Verificar se admin existe
-    const adminExists = await client.query(
-      'SELECT id FROM users WHERE email = $1',
-      ['admin@example.com']
-    );
-    
-    if (adminExists.rows.length === 0) {
-      // Criar senha hash para o admin
-      const passwordHash = await bcrypt.hash('test_password', 12);
-      
-      await client.query(`
-        INSERT INTO users (email, password_hash, name, role) 
-        VALUES ($1, $2, $3, $4)
-      `, ['admin@example.com', passwordHash, 'Admin User', 'admin']);
-      
-      console.log('✅ Usuário admin criado');
-    }
-    
-    // Inserir procedimentos padrão
-    await client.query(`
-      INSERT INTO procedures (name, category) VALUES
-        ('Consulta', 'Preventivo'),
-        ('Limpeza', 'Preventivo'),
-        ('Restauração', 'Restaurador'),
-        ('Extração', 'Cirúrgico'),
-        ('Canal', 'Endodontia'),
-        ('Coroa', 'Protético'),
-        ('Implante', 'Cirúrgico'),
-        ('Clareamento', 'Estético')
-      ON CONFLICT DO NOTHING
-    `);
-    
-    console.log('✅ Banco de dados inicializado com sucesso!');
-    
-  } catch (error) {
-    console.error('❌ Erro ao inicializar banco:', error.message);
-    // Não vamos falhar se o banco já estiver configurado
-    if (error.code === '42P07') { // tabela já existe
-      console.log('ℹ️  Banco já está configurado');
-    } else {
-      throw error;
-    }
-  } finally {
-    client.release();
+  const required = [
+    'DB_HOST',
+    'DB_PORT', 
+    'DB_NAME',
+    'DB_USER',
+    'DB_PASSWORD',
+    'JWT_SECRET',
+    'ENCRYPTION_KEY'
+  ];
+  
+  const missing = required.filter(env => !process.env[env]);
+  
+  if (missing.length > 0) {
+    console.error('❌ Variáveis de ambiente obrigatórias não encontradas:');
+    missing.forEach(env => console.error(`   - ${env}`));
+    throw new Error(`Configure as variáveis: ${missing.join(', ')}`);
   }
+  
+  // Validar qualidade das chaves de segurança
+  if (process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET deve ter pelo menos 32 caracteres');
+  }
+  
+  if (process.env.ENCRYPTION_KEY.length < 16) {
+    throw new Error('ENCRYPTION_KEY deve ter pelo menos 16 caracteres');
+  }
+  
+  console.log('✅ Variáveis de ambiente validadas');
+  console.log('✅ Chaves de segurança validadas');
 }
 
 async function startApplication() {
   try {
-    // 1. Aguardar banco de dados
+    // 1. Validar variáveis de ambiente
+    await validateEnvironment();
+    
+    // 2. Aguardar banco de dados
     await waitForDatabase();
     
-    // 2. Inicializar estrutura do banco
+    // 3. Inicializar estrutura do banco
     await initDatabase();
     
-    // 3. Fechar pool antes de iniciar aplicação
-    await pool.end();
+    // 4. Criar usuário admin padrão
+    await createDefaultAdmin();
     
-    // 4. Iniciar aplicação principal
-    console.log('\n🚀 Iniciando servidor...\n');
+    // 5. Mostrar resumo do sistema
+    showSystemSummary();
+    
+    // 6. Iniciar aplicação principal
+    console.log('\n🚀 Iniciando servidor web...\n');
+    
     const server = spawn('node', ['server/index.js'], {
       stdio: 'inherit',
-      env: process.env
+      env: {
+        ...process.env,
+        // Garantir que as variáveis estejam disponíveis
+        NODE_ENV: process.env.NODE_ENV || 'production',
+        PORT: process.env.PORT || '3001',
+      }
     });
     
+    // Handlers para o processo do servidor
     server.on('error', (error) => {
       console.error('❌ Erro ao iniciar servidor:', error);
       process.exit(1);
     });
     
-    server.on('exit', (code) => {
-      console.log(`Servidor finalizado com código ${code}`);
-      process.exit(code);
+    server.on('exit', (code, signal) => {
+      if (signal) {
+        console.log(`\n📡 Servidor interrompido pelo sinal ${signal}`);
+      } else {
+        console.log(`\n🔚 Servidor finalizado com código ${code}`);
+      }
+      process.exit(code || 0);
     });
     
+    // Handler para interrupção graceful
+    const handleShutdown = (signal) => {
+      console.log(`\n📡 Recebido sinal ${signal}, finalizando servidor...`);
+      server.kill(signal);
+    };
+    
+    process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+    process.on('SIGINT', () => handleShutdown('SIGINT'));
+    process.on('SIGUSR2', () => handleShutdown('SIGUSR2')); // Para nodemon
+    
   } catch (error) {
-    console.error('❌ Erro fatal:', error);
+    console.error('❌ Erro fatal durante inicialização:', error.message);
+    console.error('\n🔧 Verifique:');
+    console.error('   - Variáveis de ambiente configuradas');
+    console.error('   - Banco PostgreSQL acessível');
+    console.error('   - Permissões de rede');
     process.exit(1);
   }
 }
 
-// Iniciar
+function showSystemSummary() {
+  console.log('\n' + '='.repeat(60));
+  console.log('🏥 SISTEMA DE PRONTUÁRIO ODONTOLÓGICO');
+  console.log('='.repeat(60));
+  console.log('🎉 Sistema inicializado com sucesso!');
+  console.log('📊 Database: PostgreSQL conectado');
+  console.log('🔐 Segurança: JWT e criptografia configurados');
+  console.log('👤 Admin: Usuário criado');
+  console.log('');
+  console.log('📋 CREDENCIAIS DE ACESSO:');
+  console.log('   📧 Email: admin@example.com');
+  console.log('   🔑 Senha: DentalAdmin2024!SecurePass');
+  console.log('');
+  console.log('⚠️  IMPORTANTE:');
+  console.log('   1. Altere a senha após primeiro login');
+  console.log('   2. Configure backup do banco de dados');
+  console.log('   3. Monitore logs de segurança');
+  console.log('');
+  console.log('🌐 Acesse o sistema em seu domínio');
+  console.log('='.repeat(60));
+}
+
+// Tratamento de exceções não capturadas
+process.on('uncaughtException', (error) => {
+  console.error('❌ Exceção não capturada:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Promise rejeitada não tratada:', reason);
+  console.error('   Promise:', promise);
+  process.exit(1);
+});
+
+// Iniciar aplicação
 startApplication();
