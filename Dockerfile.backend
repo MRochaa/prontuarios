@@ -1,32 +1,43 @@
 # Dockerfile para Backend
 FROM node:20-alpine
 
-# Instalar dependências do sistema
+# Instalar dependências do sistema necessárias
 RUN apk add --no-cache \
     postgresql-client \
     curl \
-    bash
+    bash \
+    tzdata \
+    dumb-init
 
-# Criar usuário não-root
+# Configurar timezone
+ENV TZ=America/Sao_Paulo
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Criar usuário não-root para segurança
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S dental -u 1001 -G nodejs
 
 # Criar diretório da aplicação
 WORKDIR /app
 
-# Copiar arquivos de dependências
+# Copiar arquivos de dependências primeiro (para cache de layers)
 COPY backend/package*.json ./
 
-# Instalar dependências
-RUN npm install --only=production && npm cache clean --force
+# Instalar dependências de produção
+RUN npm ci --only=production && \
+    npm cache clean --force && \
+    chown -R dental:nodejs /app
 
 # Copiar código da aplicação
 COPY backend/server/ ./server/
 
-# Criar diretório para uploads
+# Criar estrutura de diretórios para uploads
 RUN mkdir -p server/uploads/patients server/uploads/treatments && \
     chown -R dental:nodejs server/uploads && \
-    chown -R dental:nodejs /app
+    chmod -R 755 server/uploads
+
+# Ajustar permissões
+RUN chown -R dental:nodejs /app
 
 # Mudar para usuário não-root
 USER dental
@@ -34,10 +45,16 @@ USER dental
 # Expor porta
 EXPOSE 3001
 
-# Health check
+# Configurar variáveis de ambiente padrão
+ENV NODE_ENV=production
+ENV PORT=3001
+
+# Health check melhorado
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
     CMD curl -f http://localhost:3001/api/health || exit 1
 
-# Comando para iniciar
-CMD ["node", "server/entrypoint.js"]
+# Usar dumb-init para gerenciamento de processos
+ENTRYPOINT ["dumb-init", "--"]
 
+# Comando para iniciar aplicação
+CMD ["node", "server/entrypoint.js"]
